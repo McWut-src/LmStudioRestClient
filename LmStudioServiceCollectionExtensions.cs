@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 
 namespace LmStudioRestClient;
 
+/// <summary>
+/// Provides extension methods for registering LM Studio client services.
+/// </summary>
 public static class LmStudioServiceCollectionExtensions
 {
     /// <summary>

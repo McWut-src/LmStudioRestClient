@@ -1,4 +1,6 @@
-﻿namespace LmStudioRestClient;
+﻿using System.Text.Json.Serialization;
+
+namespace LmStudioRestClient;
 
 /// <summary>
 /// Represents a single line in the JSONL input file.
@@ -47,7 +49,44 @@ public sealed record ModelInfo
 /// <summary>
 /// Request payload for POST /api/v1/chat
 /// </summary>
-public sealed record ChatRequest(string Model, string Input, bool Stream = false, string[]? Integrations = null);
+public sealed record ChatRequest : IChatRequest
+{
+    /// <summary>
+    /// Gets the model ID to use for the chat request.
+    /// </summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; init; }
+
+    /// <summary>
+    /// Gets the user prompt or message to send.
+    /// </summary>
+    [JsonPropertyName("input")]
+    public required string Input { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether to enable streaming (SSE) for the response.
+    /// </summary>
+    [JsonPropertyName("stream")]
+    public bool Stream { get; init; } = false;
+
+    /// <summary>
+    /// Gets the optional integrations to enable.
+    /// </summary>
+    [JsonPropertyName("integrations")]
+    public string[]? Integrations { get; init; }
+
+    /// <summary>
+    /// Gets the response_id from a previous request to continue a conversation.
+    /// </summary>
+    [JsonPropertyName("previous_response_id")]
+    public string? PreviousResponseId { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether to store the conversation for stateful chat. Set to false for stateless requests.
+    /// </summary>
+    [JsonPropertyName("store")]
+    public bool? Store { get; init; }
+}
 
 /// <summary>
 /// Represents a chat message.
@@ -79,4 +118,7 @@ public sealed record ChatMessage
 /// <summary>
 /// Normalized response from POST /api/v1/chat (non-streaming)
 /// </summary>
-public sealed record ChatResponse(string? Id, string? Text, int ToolCallCount = 0);
+/// <param name="ResponseId">The unique response_id returned by LM Studio for conversation continuation.</param>
+/// <param name="Text">The generated text response from the model.</param>
+/// <param name="ToolCallCount">The number of tool calls made during the response generation.</param>
+public sealed record ChatResponse(string? ResponseId, string? Text, int ToolCallCount = 0);

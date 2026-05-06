@@ -221,11 +221,12 @@ Task<ChatResponse?> ChatAsync(ChatRequest request, CancellationToken ct = defaul
 **Example:**
 
 ```csharp
-var request = new ChatRequest(
-    Model: "llama-3.2-1b-instruct",
-    Input: "Explain quantum computing in simple terms.",
-    Stream: false
-);
+var request = new ChatRequest
+{
+    Model = "llama-3.2-1b-instruct",
+    Input = "Explain quantum computing in simple terms.",
+    Stream = false
+};
 
 var response = await client.ChatAsync(request);
 Console.WriteLine(response?.Text);
@@ -233,6 +234,69 @@ Console.WriteLine(response?.Text);
 
 **LM Studio Endpoint:**
 - `POST /api/v1/chat`
+
+#### `StartConversationAsync`
+
+Start a new stateful conversation and get a `response_id` for continuation.
+
+```csharp
+Task<ChatResponse?> StartConversationAsync(string model, string input, CancellationToken ct = default);
+```
+
+**Example:**
+
+```csharp
+var response = await client.StartConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "My favorite color is blue."
+);
+
+Console.WriteLine($"Response: {response?.Text}");
+Console.WriteLine($"Response ID: {response?.ResponseId}");
+```
+
+#### `ContinueConversationAsync`
+
+Continue an existing conversation using the `response_id` from a previous request.
+
+```csharp
+Task<ChatResponse?> ContinueConversationAsync(
+    string model,
+    string input,
+    string previousResponseId,
+    CancellationToken ct = default);
+```
+
+**Example:**
+
+```csharp
+var followUp = await client.ContinueConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "What color did I just mention?",
+    previousResponseId: response!.ResponseId!
+);
+
+Console.WriteLine(followUp?.Text);
+```
+
+#### `StatelessChatAsync`
+
+Send a one-off stateless chat request (conversation is not stored).
+
+```csharp
+Task<ChatResponse?> StatelessChatAsync(string model, string input, CancellationToken ct = default);
+```
+
+**Example:**
+
+```csharp
+var response = await client.StatelessChatAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "Tell me a joke."
+);
+
+Console.WriteLine(response?.Text);
+```
 
 #### `StreamingChatAsync`
 
@@ -245,11 +309,12 @@ IAsyncEnumerable<string> StreamingChatAsync(ChatRequest request, CancellationTok
 **Example:**
 
 ```csharp
-var request = new ChatRequest(
-    Model: "llama-3.2-1b-instruct",
-    Input: "Write a short story about a robot.",
-    Stream: true
-);
+var request = new ChatRequest
+{
+    Model = "llama-3.2-1b-instruct",
+    Input = "Write a short story about a robot.",
+    Stream = true
+};
 
 await foreach (var delta in client.StreamingChatAsync(request))
 {
@@ -260,6 +325,17 @@ await foreach (var delta in client.StreamingChatAsync(request))
 **LM Studio Endpoint:**
 - `POST /api/v1/chat` (with streaming enabled)
 
+### Extension Methods
+
+The library provides extension methods for common conversation patterns:
+
+- `StartStreamingConversationAsync` - Start a stateful streaming conversation
+- `ContinueStreamingConversationAsync` - Continue a streaming conversation
+- `StatelessStreamingChatAsync` - One-off streaming request without storing context
+- `CreateRequest` - Fluent builder for advanced request configuration
+
+See the [Advanced Examples](#stateful-conversations) section for usage.
+
 ### Models
 
 #### `ChatRequest`
@@ -267,12 +343,15 @@ await foreach (var delta in client.StreamingChatAsync(request))
 Request payload for chat completions.
 
 ```csharp
-public sealed record ChatRequest(
-    string Model,           // Model ID (e.g., "llama-3.2-1b-instruct")
-    string Input,           // User prompt or message
-    bool Stream = false,    // Enable streaming (SSE)
-    string[]? Integrations = null  // Optional integrations
-);
+public sealed record ChatRequest
+{
+    public required string Model { get; init; }           // Model ID (e.g., "llama-3.2-1b-instruct")
+    public required string Input { get; init; }           // User prompt or message
+    public bool Stream { get; init; } = false;            // Enable streaming (SSE)
+    public string[]? Integrations { get; init; }          // Optional integrations
+    public string? PreviousResponseId { get; init; }      // Continue from this response_id
+    public bool? Store { get; init; }                     // Store conversation (null=default, true=store, false=stateless)
+}
 ```
 
 #### `ChatResponse`
@@ -281,7 +360,7 @@ Response from non-streaming chat completions.
 
 ```csharp
 public sealed record ChatResponse(
-    string? Id,             // Response ID
+    string? ResponseId,     // Unique response_id for conversation continuation
     string? Text,           // Generated text
     int ToolCallCount = 0   // Number of tool calls (if applicable)
 );
@@ -321,6 +400,96 @@ public sealed record PromptItem(
 ```
 
 ## Advanced Examples
+
+### Stateful Conversations
+
+LM Studio's `/api/v1/chat` endpoint supports stateful conversations, allowing you to maintain context across multiple requests without resending the entire conversation history.
+
+#### Starting a New Conversation
+
+```csharp
+// Start a new conversation
+var response = await client.StartConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "My favorite color is blue."
+);
+
+Console.WriteLine($"Response: {response?.Text}");
+Console.WriteLine($"Response ID: {response?.ResponseId}");
+```
+
+#### Continuing a Conversation
+
+```csharp
+// Continue the conversation using the response_id
+var followUp = await client.ContinueConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "What color did I just mention?",
+    previousResponseId: response!.ResponseId!
+);
+
+Console.WriteLine($"Follow-up: {followUp?.Text}");
+// Expected: "You mentioned blue."
+```
+
+#### Stateless Requests
+
+For one-off requests where you don't need to maintain context:
+
+```csharp
+var response = await client.StatelessChatAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "Tell me a joke."
+);
+
+// No ResponseId will be returned (or it won't be tracked server-side)
+```
+
+#### Using the Fluent Builder
+
+For more control, use the `ChatRequestBuilder`:
+
+```csharp
+var request = LmStudioClientExtensions
+    .CreateRequest("llama-3.2-1b-instruct", "Continue the story...")
+    .ContinueFrom(previousResponseId)
+    .WithStreaming(true)
+    .AsStateful()
+    .Build();
+
+await foreach (var delta in client.StreamingChatAsync(request))
+{
+    Console.Write(delta);
+}
+```
+
+#### Streaming Conversations
+
+Use extension methods for streaming conversations:
+
+```csharp
+// Start a streaming conversation
+string? lastResponseId = null;
+await foreach (var delta in client.StartStreamingConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "Tell me a story about a robot."
+))
+{
+    Console.Write(delta);
+}
+
+// Continue the streaming conversation
+await foreach (var delta in client.ContinueStreamingConversationAsync(
+    model: "llama-3.2-1b-instruct",
+    input: "What happened next?",
+    previousResponseId: lastResponseId!
+))
+{
+    Console.Write(delta);
+}
+```
+
+**Note:** When using streaming, the `response_id` is typically returned in the final chunk or metadata. You may need to parse the stream response to extract it.
 
 ### Streaming with Progress Indicator
 

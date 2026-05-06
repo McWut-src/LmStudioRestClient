@@ -14,7 +14,8 @@ public sealed class LmStudioClient : ILmStudioClient, IDisposable
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
 
@@ -101,7 +102,7 @@ public sealed class LmStudioClient : ILmStudioClient, IDisposable
     /// <summary>
     /// POST /api/v1/chat — Send a chat request (non-streaming).
     /// </summary>
-    public async Task<ChatResponse?> ChatAsync(ChatRequest request, CancellationToken ct = default)
+    public async Task<ChatResponse?> ChatAsync(IChatRequest request, CancellationToken ct = default)
     {
         var response = await _httpClient.PostAsJsonAsync("/api/v1/chat", request, JsonOptions, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
@@ -122,7 +123,7 @@ public sealed class LmStudioClient : ILmStudioClient, IDisposable
     /// Yields text deltas as they arrive from the LLM.
     /// </summary>
     public async IAsyncEnumerable<string> StreamingChatAsync(
-        ChatRequest request,
+        IChatRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/v1/chat");
@@ -169,6 +170,59 @@ public sealed class LmStudioClient : ILmStudioClient, IDisposable
                 yield return delta;
             }
         }
+    }
+
+    /// <summary>
+    /// Starts a new stateful conversation and returns the response with a response_id for continuation.
+    /// </summary>
+    public async Task<ChatResponse?> StartConversationAsync(string model, string input, CancellationToken ct = default)
+    {
+        var request = new ChatRequest
+        {
+            Model = model,
+            Input = input,
+            Stream = false,
+            Store = true
+        };
+
+        return await ChatAsync(request, ct);
+    }
+
+    /// <summary>
+    /// Continues an existing conversation using the response_id from a previous request.
+    /// </summary>
+    public async Task<ChatResponse?> ContinueConversationAsync(
+        string model,
+        string input,
+        string previousResponseId,
+        CancellationToken ct = default)
+    {
+        var request = new ChatRequest
+        {
+            Model = model,
+            Input = input,
+            Stream = false,
+            PreviousResponseId = previousResponseId,
+            Store = true
+        };
+
+        return await ChatAsync(request, ct);
+    }
+
+    /// <summary>
+    /// Sends a stateless chat request (conversation is not stored).
+    /// </summary>
+    public async Task<ChatResponse?> StatelessChatAsync(string model, string input, CancellationToken ct = default)
+    {
+        var request = new ChatRequest
+        {
+            Model = model,
+            Input = input,
+            Stream = false,
+            Store = false
+        };
+
+        return await ChatAsync(request, ct);
     }
 
     /// <summary>

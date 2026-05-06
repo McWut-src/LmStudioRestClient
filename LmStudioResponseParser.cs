@@ -93,9 +93,16 @@ internal static class LmStudioResponseParser
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        var id = root.TryGetProperty("id", out var idElement)
-            ? idElement.GetString()
-            : null;
+        // Try to get response_id first (LM Studio native), fallback to id (OpenAI-compatible)
+        string? responseId = null;
+        if (root.TryGetProperty("response_id", out var responseIdElement))
+        {
+            responseId = responseIdElement.GetString();
+        }
+        else if (root.TryGetProperty("id", out var idElement))
+        {
+            responseId = idElement.GetString();
+        }
 
         int toolCallCount = 0;
         string? messageText = null;
@@ -153,7 +160,7 @@ internal static class LmStudioResponseParser
                 }
             }
 
-            return new ChatResponse(id, messageText, toolCallCount);
+            return new ChatResponse(responseId, messageText, toolCallCount);
         }
 
         // OpenAI-compatible format: choices array
@@ -172,7 +179,7 @@ internal static class LmStudioResponseParser
                 {
                     var text = content.GetString();
                     if (!string.IsNullOrWhiteSpace(text))
-                        return new ChatResponse(id, text);
+                        return new ChatResponse(responseId, text);
                 }
             }
         }
@@ -181,10 +188,10 @@ internal static class LmStudioResponseParser
         if (root.TryGetProperty("text", out var textRootElement) &&
             textRootElement.ValueKind == JsonValueKind.String)
         {
-            return new ChatResponse(id, textRootElement.GetString());
+            return new ChatResponse(responseId, textRootElement.GetString());
         }
 
-        return new ChatResponse(id, null);
+        return new ChatResponse(responseId, null);
     }
 
 

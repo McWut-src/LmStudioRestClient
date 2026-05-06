@@ -19,6 +19,9 @@
     <Title>LM Studio Native Rest API v1 Client</Title>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>C:\Users\vince\source\repos\NuGets</PackageOutputPath>
+    <RepositoryUrl></RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/McWut-src/LmStudioRestClient</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

@@ -215,7 +215,7 @@ if (models?.Data != null)
 Send a non-streaming chat request and await the complete response.
 
 ```csharp
-Task<ChatResponse?> ChatAsync(ChatRequest request, CancellationToken ct = default);
+Task<ChatResponse?> ChatAsync(IChatRequest request, CancellationToken ct = default);
 ```
 
 **Example:**
